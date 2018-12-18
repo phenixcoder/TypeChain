@@ -1,6 +1,6 @@
 import uuid from "uuid/v1";
 
-export class Transaction {
+export default class Transaction {
   amount: number;
   sender: string;
   recipient: string;

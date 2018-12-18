@@ -1,7 +1,7 @@
-import { Transaction } from "./transaction";
-import { Block } from "./block";
+import Transaction from "./transaction";
+import Block from "./block";
 
-export class Blockchain {
+export default class Blockchain {
   chain: Block[];
   pendingTransactions: Transaction[];
   currentNodeUrl: string;

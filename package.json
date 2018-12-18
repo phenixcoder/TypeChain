@@ -6,12 +6,12 @@
   "scripts": {
     "start": "npm run node",
     "build": "tsc -p .",
-    "node": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js",
-    "node_1": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js 3001 http://localhost:3001",
-    "node_2": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js 3002 http://localhost:3002",
-    "node_3": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js 3003 http://localhost:3003",
-    "node_4": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js 3004 http://localhost:3004",
-    "node_5": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' dev/networkNode.js 3005 http://localhost:3005"
+    "node": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts",
+    "node_1": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts 3001 http://localhost:3001",
+    "node_2": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts 3002 http://localhost:3002",
+    "node_3": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts 3003 http://localhost:3003",
+    "node_4": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts 3004 http://localhost:3004",
+    "node_5": "nodemon --watch '**/*.ts' --exec 'ts-node' node.ts 3005 http://localhost:3005"
   },
   "author": "",
   "license": "ISC",
@@ -26,6 +26,7 @@
     "uuid": "^3.2.1"
   },
   "devDependencies": {
+    "@types/express": "^4.16.0",
     "@types/node": "^10.12.15",
     "typescript": "^3.2.2"
   }

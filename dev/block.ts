@@ -1,6 +1,6 @@
-import { Transaction } from "./transaction";
+import Transaction from "./transaction";
 
-export class Block {
+export default class Block {
   index: number;
   timestamp: number;
   transactions: Transaction[];
