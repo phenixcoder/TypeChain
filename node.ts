@@ -6,7 +6,7 @@ import uuid from "uuid/v1";
 const PORT = process.argv[2];
 const URL = process.argv[3];
 const app = express();
-import * as rp from "request-promise";
+import request from "request-promise";
 import Transaction from "./dev/transaction";
 
 const NODE_ADDRESS = uuid()
@@ -39,25 +39,19 @@ app.post("/transaction/broadcast", function(req, res) {
   );
   CHAIN.addTransactionToPendingTransactions(newTransaction);
 
-  const requestPromises: any[] = [];
-  CHAIN.networkNodes.forEach(networkNodeUrl => {
+  CHAIN.networkNodes.forEach(async networkNodeUrl => {
     const requestOptions = {
-      uri: networkNodeUrl + "/transaction",
-      method: "POST",
       body: newTransaction,
       json: true
     };
-
-    requestPromises.push(rp(requestOptions));
+    await request.post(networkNodeUrl + "/transaction", requestOptions);
   });
 
-  Promise.all(requestPromises).then(data => {
-    res.json({ note: "Transaction created and broadcast successfully." });
-  });
+  res.json({ note: "Transaction created and broadcast successfully." });
 });
 
 // mine a block
-app.get("/mine", function(req, res) {
+app.get("/mine", async function(req, res) {
   const lastBlock = CHAIN.getLastBlock();
   const previousBlockHash = lastBlock["hash"];
   const currentBlockData = {
@@ -68,39 +62,34 @@ app.get("/mine", function(req, res) {
   const blockHash = CHAIN.hashBlock(previousBlockHash, currentBlockData, nonce);
   const newBlock = CHAIN.createNewBlock(nonce, previousBlockHash, blockHash);
 
-  const requestPromises: any[] = [];
-  CHAIN.networkNodes.forEach(networkNodeUrl => {
+  CHAIN.networkNodes.forEach(async networkNodeUrl => {
     const requestOptions = {
-      uri: networkNodeUrl + "/receive-new-block",
-      method: "POST",
       body: { newBlock: newBlock },
       json: true
     };
 
-    requestPromises.push(rp(requestOptions));
+    await request.post(networkNodeUrl + "/receive-new-block", requestOptions);
   });
 
-  Promise.all(requestPromises)
-    .then(data => {
-      const requestOptions = {
-        uri: CHAIN.currentNodeUrl + "/transaction/broadcast",
-        method: "POST",
-        body: {
-          amount: 12.5,
-          sender: "00",
-          recipient: NODE_ADDRESS
-        },
-        json: true
-      };
+  const requestOptions = {
+    uri: CHAIN.currentNodeUrl + "/transaction/broadcast",
+    method: "POST",
+    body: {
+      amount: 12.5,
+      sender: "00",
+      recipient: NODE_ADDRESS
+    },
+    json: true
+  };
+  await request.post(
+    CHAIN.currentNodeUrl + "/transaction/broadcast",
+    requestOptions
+  );
 
-      return rp(requestOptions);
-    })
-    .then(data => {
-      res.json({
-        note: "New block mined & broadcast successfully",
-        block: newBlock
-      });
-    });
+  res.json({
+    note: "New block mined & broadcast successfully",
+    block: newBlock
+  });
 });
 
 // receive new block
@@ -126,39 +115,29 @@ app.post("/receive-new-block", function(req, res) {
 });
 
 // register a node and broadcast it the network
-app.post("/register-and-broadcast-node", function(req, res) {
+app.post("/register-and-broadcast-node", async function(req, res) {
   const newNodeUrl = req.body.newNodeUrl;
   if (CHAIN.networkNodes.indexOf(newNodeUrl) == -1)
     CHAIN.networkNodes.push(newNodeUrl);
 
-  const regNodesPromises: any[] = [];
-  CHAIN.networkNodes.forEach(networkNodeUrl => {
+  CHAIN.networkNodes.forEach(async networkNodeUrl => {
     const requestOptions = {
-      uri: networkNodeUrl + "/register-node",
-      method: "POST",
       body: { newNodeUrl: newNodeUrl },
       json: true
     };
-
-    regNodesPromises.push(rp(requestOptions));
+    await request.post(networkNodeUrl + "/register-node", requestOptions);
   });
 
-  Promise.all(regNodesPromises)
-    .then(data => {
-      const bulkRegisterOptions = {
-        uri: newNodeUrl + "/register-nodes-bulk",
-        method: "POST",
-        body: {
-          allNetworkNodes: [...CHAIN.networkNodes, CHAIN.currentNodeUrl]
-        },
-        json: true
-      };
+  const bulkRegisterOptions = {
+    body: {
+      allNetworkNodes: [...CHAIN.networkNodes, CHAIN.currentNodeUrl]
+    },
+    json: true
+  };
 
-      return rp(bulkRegisterOptions);
-    })
-    .then(data => {
-      res.json({ note: "New node registered with network successfully." });
-    });
+  await request.post(newNodeUrl + "/register-nodes-bulk", bulkRegisterOptions);
+
+  res.json({ note: "New node registered with network successfully." });
 });
 
 // register a node with the network
@@ -187,48 +166,46 @@ app.post("/register-nodes-bulk", function(req, res) {
 
 // consensus
 app.get("/consensus", function(req, res) {
-  const requestPromises: any[] = [];
-  CHAIN.networkNodes.forEach(networkNodeUrl => {
+  let blockchains: Blockchain[] = [];
+  CHAIN.networkNodes.forEach(async networkNodeUrl => {
     const requestOptions = {
-      uri: networkNodeUrl + "/blockchain",
-      method: "GET",
       json: true
     };
 
-    requestPromises.push(rp(requestOptions));
+    blockchains.push(
+      await request.get(networkNodeUrl + "/blockchain", requestOptions)
+    );
   });
 
-  Promise.all(requestPromises).then(blockchains => {
-    const currentChainLength = CHAIN.chain.length;
-    let maxChainLength = currentChainLength;
-    let newLongestChain = null;
-    let newPendingTransactions: Transaction[] = [];
+  const currentChainLength = CHAIN.chain.length;
+  let maxChainLength = currentChainLength;
+  let newLongestChain = null;
+  let newPendingTransactions: Transaction[] = [];
 
-    blockchains.forEach(blockchain => {
-      if (blockchain.chain.length > maxChainLength) {
-        maxChainLength = blockchain.chain.length;
-        newLongestChain = blockchain.chain;
-        newPendingTransactions = blockchain.pendingTransactions;
-      }
-    });
-
-    if (
-      !newLongestChain ||
-      (newLongestChain && !CHAIN.chainIsValid(newLongestChain))
-    ) {
-      res.json({
-        note: "Current chain has not been replaced.",
-        chain: CHAIN.chain
-      });
-    } else {
-      CHAIN.chain = newLongestChain;
-      CHAIN.pendingTransactions = newPendingTransactions;
-      res.json({
-        note: "This chain has been replaced.",
-        chain: CHAIN.chain
-      });
+  blockchains.forEach(blockchain => {
+    if (blockchain.chain.length > maxChainLength) {
+      maxChainLength = blockchain.chain.length;
+      newLongestChain = blockchain.chain;
+      newPendingTransactions = blockchain.pendingTransactions;
     }
   });
+
+  if (
+    !newLongestChain ||
+    (newLongestChain && !CHAIN.chainIsValid(newLongestChain))
+  ) {
+    res.json({
+      note: "Current chain has not been replaced.",
+      chain: CHAIN.chain
+    });
+  } else {
+    CHAIN.chain = newLongestChain;
+    CHAIN.pendingTransactions = newPendingTransactions;
+    res.json({
+      note: "This chain has been replaced.",
+      chain: CHAIN.chain
+    });
+  }
 });
 
 // get block by blockHash
@@ -257,6 +234,11 @@ app.get("/address/:address", function(req, res) {
   res.json({
     addressData: addressData
   });
+});
+
+// block explorer
+app.get("/block-explorer", function(req, res) {
+  res.sendFile("./block-explorer/index.html", { root: __dirname });
 });
 
 app.listen(PORT, function() {
